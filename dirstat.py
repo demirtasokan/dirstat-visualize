@@ -69,7 +69,7 @@ def age_label(mtime: float | None) -> str:
 
 # ── Ağaç ve İstatistik Toplama (Single Pass & os.scandir) ─────────────────────
 
-def _analyze_dir(path_str: str, recursive: bool, scan_subdirs: bool = True) -> tuple[int, float | None, Counter, list]:
+def _analyze_dir(path_str: str, recursive: bool, scan_subdirs: bool = True, current_depth: int = 0, max_depth: int | None = None) -> tuple[int, float | None, Counter, list]:
     """
     Belirtilen dizini tek seferde tarar (single pass).
     Döndürdüğü değerler:
@@ -114,7 +114,13 @@ def _analyze_dir(path_str: str, recursive: bool, scan_subdirs: bool = True) -> t
             subdir_path = os.path.join(path_str, subdir_name)
             
             if recursive:
-                sub_cnt, sub_mtime, sub_exts, sub_children = _analyze_dir(subdir_path, recursive=True, scan_subdirs=True)
+                sub_cnt, sub_mtime, sub_exts, sub_children = _analyze_dir(
+                    subdir_path, 
+                    recursive=True, 
+                    scan_subdirs=True,
+                    current_depth=current_depth + 1,
+                    max_depth=max_depth
+                )
                 
                 if sub_cnt >= 0:
                     file_count += sub_cnt
@@ -124,20 +130,28 @@ def _analyze_dir(path_str: str, recursive: bool, scan_subdirs: bool = True) -> t
                     if max_mtime is None or sub_mtime > max_mtime:
                         max_mtime = sub_mtime
                         
-                top_ext_list = []
-                if sub_cnt > 0:
-                    top_ext_list = [(ext, round(c / sub_cnt * 100, 1)) for ext, c in sub_exts.most_common(TOP_N)]
-                    
-                child_nodes.append((Path(subdir_path), sub_cnt, sub_mtime, top_ext_list, sub_children))
+                if max_depth is None or current_depth < max_depth:
+                    top_ext_list = []
+                    if sub_cnt > 0:
+                        top_ext_list = [(ext, round(c / sub_cnt * 100, 1)) for ext, c in sub_exts.most_common(TOP_N)]
+                        
+                    child_nodes.append((Path(subdir_path), sub_cnt, sub_mtime, top_ext_list, sub_children))
             else:
                 # Recursive değilse, sadece bu alt klasörün hemen içindeki dosyaları sayarız
-                sub_cnt, sub_mtime, sub_exts, _ = _analyze_dir(subdir_path, recursive=False, scan_subdirs=False)
+                sub_cnt, sub_mtime, sub_exts, _ = _analyze_dir(
+                    subdir_path, 
+                    recursive=False, 
+                    scan_subdirs=False,
+                    current_depth=current_depth + 1,
+                    max_depth=max_depth
+                )
                 
-                top_ext_list = []
-                if sub_cnt > 0:
-                    top_ext_list = [(ext, round(c / sub_cnt * 100, 1)) for ext, c in sub_exts.most_common(TOP_N)]
-                    
-                child_nodes.append((Path(subdir_path), sub_cnt, sub_mtime, top_ext_list, []))
+                if max_depth is None or current_depth < max_depth:
+                    top_ext_list = []
+                    if sub_cnt > 0:
+                        top_ext_list = [(ext, round(c / sub_cnt * 100, 1)) for ext, c in sub_exts.most_common(TOP_N)]
+                        
+                    child_nodes.append((Path(subdir_path), sub_cnt, sub_mtime, top_ext_list, []))
 
     except (PermissionError, OSError):
         return -1, None, Counter(), []
@@ -145,9 +159,9 @@ def _analyze_dir(path_str: str, recursive: bool, scan_subdirs: bool = True) -> t
     return file_count, max_mtime, ext_counter, child_nodes
 
 
-def collect_tree(path: Path, recursive: bool) -> list:
+def collect_tree(path: Path, recursive: bool, max_depth: int | None = None) -> list:
     """Ağacı oluşturur ve kök dizinin altındaki node listesini döndürür."""
-    _, _, _, child_nodes = _analyze_dir(str(path), recursive=recursive, scan_subdirs=True)
+    _, _, _, child_nodes = _analyze_dir(str(path), recursive=recursive, scan_subdirs=True, current_depth=0, max_depth=max_depth)
     return child_nodes
 
 
@@ -229,6 +243,8 @@ def main() -> None:
     parser.add_argument("directory", nargs="?", default=".", help="Taranacak dizin (varsayılan: .)")
     parser.add_argument("-r", "--recursive", action="store_true",
                         help="Alt dizinleri özyinelemeli tara")
+    parser.add_argument("-d", "--max-depth", type=int, default=None,
+                        help="Görüntülenecek maksimum ağaç derinliği (Örn: 1, 2, 3...)")
     args = parser.parse_args()
 
     root = Path(args.directory).expanduser().resolve()
@@ -239,12 +255,13 @@ def main() -> None:
         console.print(f"[red]Hata:[/red] '{root}' bir dizin değil.")
         sys.exit(1)
 
-    mode = "özyinelemeli" if args.recursive else "yalnızca doğrudan alt dizinler"
+    depth_info = f", derinlik limiti: {args.max_depth}" if args.max_depth is not None else ""
+    mode = ("özyinelemeli" if args.recursive else "yalnızca doğrudan alt dizinler") + depth_info
     console.print(f"\n  [bold white]{root}[/bold white]  [dim][{mode}][/dim]")
     print_legend()
     print_header()
 
-    nodes = collect_tree(root, args.recursive)
+    nodes = collect_tree(root, args.recursive, args.max_depth)
     if not nodes:
         console.print("  (alt dizin bulunamadı)")
         console.print()
