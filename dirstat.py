@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import sys
+import os
 import argparse
 from collections import Counter
 from datetime import datetime, timedelta
@@ -12,6 +13,13 @@ try:
 except ImportError:
     print("Hata: 'rich' kütüphanesi gerekli.  -->  pip install rich", file=sys.stderr)
     sys.exit(1)
+
+# Windows'ta UnicodeEncodeError (cp1254) hatasını önlemek için UTF-8 zorla
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 console = Console()
 
@@ -59,53 +67,88 @@ def age_label(mtime: float | None) -> str:
     return f"{days // 365}y önce"
 
 
-def latest_mtime(path: Path, recursive: bool) -> float | None:
-    """Dizindeki en güncel dosyanın mtime'ını döndürür."""
+# ── Ağaç ve İstatistik Toplama (Single Pass & os.scandir) ─────────────────────
+
+def _analyze_dir(path_str: str, recursive: bool, scan_subdirs: bool = True) -> tuple[int, float | None, Counter, list]:
+    """
+    Belirtilen dizini tek seferde tarar (single pass).
+    Döndürdüğü değerler:
+      - file_count: Toplam dosya sayısı (recursive ise alt dizinler dahil)
+      - max_mtime: En yeni dosyanın değiştirilme tarihi
+      - ext_counter: Uzantıların Counter nesnesi
+      - child_nodes: [(Path, count, mtime, exts, children), ...]
+    """
+    file_count = 0
+    max_mtime = None
+    ext_counter = Counter()
+    child_nodes = []
+
     try:
-        it = path.rglob("*") if recursive else path.iterdir()
-        mtimes = [f.stat().st_mtime for f in it if f.is_file()]
-        return max(mtimes) if mtimes else None
-    except PermissionError:
-        return None
+        subdirs = []
+        with os.scandir(path_str) as it:
+            for entry in it:
+                if entry.is_dir(follow_symlinks=False):
+                    # Tüm DirEntry nesnesini RAM'de tutmak yerine sadece ismini alıyoruz.
+                    subdirs.append(entry.name)
+                elif entry.is_file(follow_symlinks=False):
+                    file_count += 1
+                    try:
+                        stat = entry.stat(follow_symlinks=False)
+                        if max_mtime is None or stat.st_mtime > max_mtime:
+                            max_mtime = stat.st_mtime
+                    except OSError:
+                        pass
+                    
+                    _, ext = os.path.splitext(entry.name)
+                    ext = ext.lower() if ext else "(yok)"
+                    ext_counter[ext] += 1
+            
+        # Alt klasörleri alfabetik sıralıyoruz.
+        # with bloğundan çıkarak os.scandir() file descriptor'ını hızlıca serbest bıraktık!
+        subdirs.sort()
 
+        for subdir_name in subdirs:
+            if not scan_subdirs:
+                continue
+            
+            subdir_path = os.path.join(path_str, subdir_name)
+            
+            if recursive:
+                sub_cnt, sub_mtime, sub_exts, sub_children = _analyze_dir(subdir_path, recursive=True, scan_subdirs=True)
+                
+                if sub_cnt >= 0:
+                    file_count += sub_cnt
+                    ext_counter.update(sub_exts)
+                
+                if sub_mtime is not None:
+                    if max_mtime is None or sub_mtime > max_mtime:
+                        max_mtime = sub_mtime
+                        
+                top_ext_list = []
+                if sub_cnt > 0:
+                    top_ext_list = [(ext, round(c / sub_cnt * 100, 1)) for ext, c in sub_exts.most_common(TOP_N)]
+                    
+                child_nodes.append((Path(subdir_path), sub_cnt, sub_mtime, top_ext_list, sub_children))
+            else:
+                # Recursive değilse, sadece bu alt klasörün hemen içindeki dosyaları sayarız
+                sub_cnt, sub_mtime, sub_exts, _ = _analyze_dir(subdir_path, recursive=False, scan_subdirs=False)
+                
+                top_ext_list = []
+                if sub_cnt > 0:
+                    top_ext_list = [(ext, round(c / sub_cnt * 100, 1)) for ext, c in sub_exts.most_common(TOP_N)]
+                    
+                child_nodes.append((Path(subdir_path), sub_cnt, sub_mtime, top_ext_list, []))
 
-# ── Uzantı analizi ──────────────────────────────────────────────────────────
+    except (PermissionError, OSError):
+        return -1, None, Counter(), []
 
-def top_extensions(path: Path, recursive: bool) -> list:
-    try:
-        it    = path.rglob("*") if recursive else path.iterdir()
-        files = [f for f in it if f.is_file()]
-    except PermissionError:
-        return []
-    if not files:
-        return []
-    counts = Counter(f.suffix.lower() if f.suffix else "(yok)" for f in files)
-    total  = len(files)
-    return [(ext, round(cnt / total * 100, 1)) for ext, cnt in counts.most_common(TOP_N)]
+    return file_count, max_mtime, ext_counter, child_nodes
 
-
-# ── Ağaç toplama ─────────────────────────────────────────────────────────────
 
 def collect_tree(path: Path, recursive: bool) -> list:
-    """Her düğüm: (Path, dosya_sayısı, mtime|None, top_exts, [çocuklar])"""
-    try:
-        subdirs = sorted(p for p in path.iterdir() if p.is_dir())
-    except PermissionError:
-        return []
-
-    nodes = []
-    for subdir in subdirs:
-        try:
-            it    = subdir.rglob("*") if recursive else subdir.iterdir()
-            count = sum(1 for p in it if p.is_file())
-        except PermissionError:
-            count = -1
-
-        mtime    = latest_mtime(subdir, recursive)
-        exts     = top_extensions(subdir, recursive)
-        children = collect_tree(subdir, recursive) if recursive else []
-        nodes.append((subdir, count, mtime, exts, children))
-    return nodes
+    """Ağacı oluşturur ve kök dizinin altındaki node listesini döndürür."""
+    _, _, _, child_nodes = _analyze_dir(str(path), recursive=recursive, scan_subdirs=True)
+    return child_nodes
 
 
 def find_max(nodes: list) -> int:
