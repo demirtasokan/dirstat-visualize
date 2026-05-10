@@ -1,34 +1,56 @@
-\# DirStat Visualizer 📂
+# DirStat Visualizer 📂
 
+**DirStat Visualizer**, Linux tabanlı sistemlerde (özellikle **RHEL** ve **Ubuntu**) terminal üzerinden dizin yapısını ve dosya yoğunluğunu görselleştirmek için geliştirilmiş hafif ve güçlü bir **TUI (Terminal User Interface)** aracıdır.
 
+Karmaşık klasör hiyerarşilerini analiz etmeyi kolaylaştırır ve terminal ortamında hızlı, okunabilir ve renkli çıktılar sunar.
 
-\*\*DirStat Visualizer\*\*, Linux (RHEL/Ubuntu) sistemlerde terminal (siyah ekran) üzerinden dizin yapılarını ve dosya yoğunluklarını görselleştirmek için geliştirilmiş hafif ve güçlü bir \*\*TUI (Terminal User Interface)\*\* aracıdır.
+Bu proje, bir yazılım geliştiricinin vizyonu ile **Claude Code**’un yapay zeka destekli geliştirme yeteneklerinin iş birliğiyle hayata geçirilmiştir.
 
+---
 
+## ✨ Özellikler
 
-Bu proje, bir yazılım geliştiricinin vizyonu ve \*\*Claude Code\*\*'un yapay zeka destekli kodlama yetenekleri ile ortaklaşa inşa edilmiştir.
+- **Ağaç Yapısı Görünümü**  
+  Dizinleri ve alt dizinleri temiz, hiyerarşik ve okunabilir bir ağaç yapısında gösterir.
 
+- **Dosya Sayımı**  
+  Her klasör ve alt klasörde bulunan toplam dosya sayısını analiz eder ve görüntüler.
 
+- **Terminal Dostu**  
+  GUI gerektirmez; tamamen terminal üzerinde çalışır.
 
-\### ✨ Öne Çıkan Özellikler
+- **Zengin Görselleştirme**  
+  Python `rich` kütüphanesi ile renklendirilmiş, optimize edilmiş ve kullanıcı dostu terminal çıktıları üretir.
 
-\*   \*\*Ağaç Yapısı Görünümü:\*\* Karmaşık dizin hiyerarşilerini temiz ve okunabilir bir ağaç yapısında sunar.
+- **Hafif ve Hızlı**  
+  Büyük dizin yapılarında bile düşük kaynak tüketimi ile çalışacak şekilde tasarlanmıştır.
 
-\*   \*\*Dosya Sayımı:\*\* Her alt dizindeki toplam dosya sayısını anlık olarak analiz eder.
+---
 
-\*   \*\*Terminal Dostu:\*\* RHEL ve Ubuntu gibi sistemlerde herhangi bir GUI (Görsel Arayüz) gerektirmeden çalışır.
+## 🛠️ Teknik Altyapı
 
-\*   \*\*Zengin Görselleştirme:\*\* Python `rich` kütüphanesi kullanılarak renklendirilmiş ve optimize edilmiş terminal çıktısı sağlar.
+| Bileşen | Detay |
+|----------|--------|
+| **Dil** | Python 3.11+ |
+| **UI Framework** | Rich |
+| **Platform** | Linux (RHEL, Ubuntu) |
+| **Arayüz** | Terminal (TUI) |
+| **Geliştirme Aracı** | Claude Code CLI |
 
+---
 
+## 🚀 Kullanım Alanları
 
-\### 🛠️ Teknik Altyapı
+DirStat Visualizer aşağıdaki senaryolarda faydalıdır:
 
-\*   \*\*Dil:\*\* Python 3.11+
+- Büyük proje dizinlerini analiz etmek
+- Disk kullanım yoğunluklarını hızlı görmek
+- Gereksiz klasör/dosya yapılarını tespit etmek
+- DevOps ve sistem yönetimi süreçlerinde hızlı klasör inceleme yapmak
 
-\*   \*\*Kütüphaneler:\*\* Rich (Görselleştirme için)
+---
 
-\*   \*\*Platform:\*\* Linux (Tested on RHEL \& Ubuntu)
+## 🎯 Hedef
 
-\*   \*\*Geliştirme Aracı:\*\* Claude Code CLI
+DirStat Visualizer’ın amacı, Linux terminal kullanıcılarına **WinDirStat benzeri**, ancak tamamen terminal tabanlı, hızlı ve modern bir dizin analiz deneyimi sunmaktır.
 
